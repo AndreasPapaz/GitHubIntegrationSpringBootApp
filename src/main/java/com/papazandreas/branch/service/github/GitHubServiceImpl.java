@@ -6,6 +6,7 @@ import com.papazandreas.branch.model.github.GitHubRepoMapper;
 import com.papazandreas.branch.model.github.GitHubUserMapper;
 import com.papazandreas.branch.service.github.impl.GitHubService;
 import jakarta.annotation.Resource;
+import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -54,21 +56,28 @@ public class GitHubServiceImpl implements GitHubService {
     * @return GitHubEntityResponse containing user details and repositories
    */
    @Override
+   @SneakyThrows
    @Cacheable(value = CACHE_VALUE, key = CACKE_KEY)
    public GitHubEntityResponse getGitHubUser(String githubusername) {
        if (githubusername == null || githubusername.isEmpty()) {
            return null;
        }
 
-       // GitHub Api Calls.
-       ResponseEntity<GitHubUserMapper> gitHubUserResponse = restTemplate.getForEntity(gitHubUserApiUrl, GitHubUserMapper.class, githubusername);
-       ResponseEntity<GitHubRepoMapper[]> gitHubUserRepoResponse = restTemplate.getForEntity(gitHubReposApiUrl, GitHubRepoMapper[].class, githubusername);
+       // GitHub Api Calls concurrently.
+       CompletableFuture<GitHubUserMapper> userFuture = CompletableFuture.supplyAsync(() ->
+               restTemplate.getForObject(gitHubUserApiUrl, GitHubUserMapper.class, githubusername));
+
+       CompletableFuture<GitHubRepoMapper[]> reposFuture = CompletableFuture.supplyAsync(() ->
+               restTemplate.getForObject(gitHubReposApiUrl, GitHubRepoMapper[].class, githubusername));
+
+       // Wait for both futures to complete
+       CompletableFuture.allOf(userFuture, reposFuture).join();
+
+       GitHubUserMapper user = userFuture.get();
+       GitHubRepoMapper[] repos = reposFuture.get();
 
        // Merge GitHub User with associated repos.
-       GitHubEntityResponse gitHubEntityResponse = constructGitHubUserResponse(gitHubUserResponse.getBody(),
-               gitHubUserRepoResponse.getBody());
-
-       return gitHubEntityResponse;
+       return constructGitHubUserResponse(user, repos);
    }
 
    // Consider moving this method to a GitHub Response helper class.
