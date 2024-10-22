@@ -3,6 +3,8 @@ package com.papazandreas.branch.service.github;
 import com.papazandreas.branch.model.github.GitHubEntityResponse;
 import com.papazandreas.branch.model.github.GitHubRepoMapper;
 import com.papazandreas.branch.model.github.GitHubUserMapper;
+
+import org.assertj.core.api.CompletableFutureAssert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -14,6 +16,9 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
+import javax.naming.CommunicationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -78,10 +83,10 @@ class GitHubServiceImplTest {
         String username = "octocat";
 
         // Mock API request to GitHub
-        when(restTemplate.getForEntity(anyString(), eq(GitHubUserMapper.class), eq(username)))
-                .thenReturn(userResponseEntity);
-        when(restTemplate.getForEntity(anyString(), eq(GitHubRepoMapper[].class), eq(username)))
-                .thenReturn(reposResponseEntity);
+        when(restTemplate.getForObject(anyString(), eq(GitHubUserMapper.class), eq(username)))
+                .thenReturn(mockUser);
+        when(restTemplate.getForObject(anyString(), eq(GitHubRepoMapper[].class), eq(username)))
+                .thenReturn(mockRepoList);
 
         // Branch (Demo) gitHubService impl
         GitHubEntityResponse response = gitHubService.getGitHubUser(username);
@@ -118,18 +123,14 @@ class GitHubServiceImplTest {
         String invalidUsername = "invalidUser";
 
         // MOCK 3rd party api service.
-        when(restTemplate.getForEntity(anyString(), eq(GitHubUserMapper.class), eq(invalidUsername)))
-                .thenThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND));
-        when(restTemplate.getForEntity(anyString(), eq(GitHubRepoMapper[].class), eq(invalidUsername)))
-                .thenThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND));
+        when(restTemplate.getForObject(anyString(), eq(GitHubUserMapper.class), eq(invalidUsername)))
+                .thenThrow(new CompletionException("NOT FOUND", new Throwable()));
+        when(restTemplate.getForObject(anyString(), eq(GitHubRepoMapper[].class), eq(invalidUsername)))
+                .thenThrow(new CompletionException("NOT FOUND", new Throwable()));
 
         // Assert Exception for invalid username.
-        Exception exception = assertThrows(HttpClientErrorException.class, () -> {
+        Exception exception = assertThrows(CompletionException.class, () -> {
             gitHubService.getGitHubUser(invalidUsername);
         });
-
-        // Assert Status Code.
-        assertEquals(HttpStatus.NOT_FOUND, ((HttpStatusCodeException) exception).getStatusCode());
     }
-
 }

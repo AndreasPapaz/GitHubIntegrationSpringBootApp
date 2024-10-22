@@ -82,7 +82,6 @@ public class GitHubServiceImpl implements GitHubService {
 
    // Consider moving this method to a GitHub Response helper class.
    private GitHubEntityResponse constructGitHubUserResponse(GitHubUserMapper gitHubUser, GitHubRepoMapper[] gitHubUserRepo) {
-
        List<GitHubRepoEntity> reposList = new ArrayList<>();
        if (gitHubUserRepo != null) {
            reposList = Arrays.stream(gitHubUserRepo).map(repo -> {
